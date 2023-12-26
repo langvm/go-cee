@@ -36,7 +36,7 @@ const (
 	SHR     // >>
 	AND_NOT // &^
 
-	MEMBER //.
+	MEMBER_SELECT //.
 
 	LAND // &&
 	LOR  // ||
@@ -150,7 +150,7 @@ var KeywordLiterals = [...]string{
 	SHR_ASSIGN:     ">>=",
 	AND_NOT_ASSIGN: "&^=",
 
-	MEMBER: ".",
+	MEMBER_SELECT: ".",
 
 	LAND: "&&",
 	LOR:  "||",
@@ -214,20 +214,18 @@ var KeywordLiterals = [...]string{
 
 func IsLiteralValue(kind int) bool { return LITERAL_BEGIN < kind && kind < LITERAL_END }
 
-var UnaryPrefixOperators = [...]bool{
+var PrefixUnaryOperators = [...]bool{
 	MUL: true,
 	AND: true,
 	ADD: true,
 }
 
-var UnaryPostfixOperators = [...]bool{
+var PostfixUnaryOperators = [...]bool{
 	INC: true,
 	DEC: true,
 }
 
 var BinaryOperators = [...]int{
-	MEMBER,
-
 	MUL,
 	QUO,
 	REM,
