@@ -254,8 +254,8 @@ func (p *Parser) ExpectCallExpr(callee Expr) CallExpr {
 	}
 }
 
-// ExpectExprSuccessor continues to parse if the next token can lead to a new expression.
-func (p *Parser) ExpectExprSuccessor(expr Expr) Expr {
+// LookAheadExprSuccessor continues to parse, when current token leads to a new expression.
+func (p *Parser) LookAheadExprSuccessor(expr Expr) Expr {
 	switch p.Token.Kind {
 	case token.MEMBER_SELECT:
 		return p.ExpectMemberSelectExpr(expr)
@@ -273,10 +273,30 @@ func (p *Parser) ExpectExprSuccessor(expr Expr) Expr {
 				Expr:     expr,
 			}
 		}
+		return nil
+	}
+}
 
-		panic(UnexpectedNodeError{
-			Node:   p.Token,
-			Expect: []int{token.MEMBER_SELECT, token.LBRACK, token.LPAREN}})
+func (p *Parser) ExpectShortExpr() (expr Expr) {
+	begin := p.Position
+
+	if token.PrefixUnaryOperators[p.Token.Kind] {
+		op := p.ExpectOperator()
+		expr := p.ExpectShortExpr()
+		return UnaryExpr{
+			PosRange: PosRange{From: begin, To: p.Position},
+			Operator: op,
+			Expr:     expr,
+		}
+	}
+
+	switch p.Token.Kind {
+	case token.IDENT:
+		// TODO
+		return
+	default:
+		// TODO
+		return
 	}
 }
 
@@ -286,6 +306,8 @@ func (p *Parser) ExpectExpr() (expr Expr) {
 	//       | UnaryExpr
 	//       | CallExpr
 	//       | Ident
+
+	expr = p.ExpectShortExpr()
 }
 
 func (p *Parser) ExpectExprList(terminator int) (exprs []Expr) {

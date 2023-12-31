@@ -41,7 +41,7 @@ func (bs *BufferScanner) PrintCursor() {
 }
 
 // Move returns current char and move cursor to the next.
-// Move does not error if GetChar does not error.
+// Move does not error when GetChar does not error.
 func (bs *BufferScanner) Move() (rune, error) {
 	ch, err := bs.GetChar()
 	if err != nil {
@@ -61,6 +61,7 @@ func (bs *BufferScanner) Move() (rune, error) {
 	return ch, nil
 }
 
+// GetChar returns the char where the cursor is.
 func (bs *BufferScanner) GetChar() (rune, error) {
 	if bs.Offset == len(bs.Buffer) {
 		return 0, EOFError{Pos: bs.Position}
@@ -68,6 +69,7 @@ func (bs *BufferScanner) GetChar() (rune, error) {
 	return bs.Buffer[bs.Offset], nil
 }
 
+// Scanner is the token scanner.
 type Scanner struct {
 	BufferScanner
 }
