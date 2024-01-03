@@ -1,4 +1,4 @@
-// Copyright 2023-2023 LangVM Project
+// Copyright 2023-2024 LangVM Project
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
@@ -73,13 +73,13 @@ func (p *Parser) ExpectIdentList(terminator int) (idents []Ident) {
 	}
 }
 
+// ExpectFuncType starts from left paren.
 func (p *Parser) ExpectFuncType() FuncType {
 	var (
 		params  []GenDecl
 		results []Type
 	)
 
-	p.Scan()
 	p.MatchTerms(token.LPAREN)
 
 	if p.Token.Kind == token.IDENT {
@@ -106,23 +106,33 @@ func (p *Parser) ExpectFuncType() FuncType {
 func (p *Parser) ExpectFuncDecl() FuncDecl {
 	begin := p.Position
 
+	p.MatchTerms(token.FUNC)
+
+	ident := p.ExpectIdent()
 	typ := p.ExpectFuncType()
 
-	p.ExpectStmtBlockExpr()
+	if p.Token.Kind != token.LBRACE {
+		return FuncDecl{
+			PosRange: PosRange{From: begin, To: p.Position},
+			Type:     typ,
+			Name:     ident,
+			Stmt:     nil,
+		}
+	}
 
+	blockStmt := p.ExpectStmtBlockExpr()
 	return FuncDecl{
 		PosRange: PosRange{From: begin, To: p.Position},
 		Type:     typ,
-		Name:     "",
-		Block:    StmtBlockExpr{},
+		Name:     ident,
+		Stmt:     &blockStmt,
 	}
 }
 
 func (p *Parser) ExpectStructType() StructType {
 	begin := p.Position
 
-	p.Scan() // 'struct'
-	p.MatchTerms(token.LBRACE)
+	p.MatchTerms(token.STRUCT, token.LBRACE)
 
 	var fields []GenDecl
 	for {
@@ -158,6 +168,9 @@ func (p *Parser) ExpectTraitType() TraitType {
 
 func (p *Parser) ExpectType() Type {
 	switch p.Token.Kind {
+	case token.FUNC:
+		p.Scan()
+		return p.ExpectFuncType()
 	case token.STRUCT:
 		return p.ExpectStructType()
 	case token.TRAIT:
@@ -210,7 +223,7 @@ func (p *Parser) ExpectIndexExpr(expr Expr) IndexExpr {
 
 	begin := p.Position
 
-	p.Scan()
+	p.MatchTerms(token.LBRACK)
 
 	indexExpr := p.ExpectExpr()
 	p.MatchTerms(token.RBRACK)
@@ -227,7 +240,7 @@ func (p *Parser) ExpectMemberSelectExpr(expr Expr) MemberSelectExpr {
 
 	begin := p.Position
 
-	p.Scan() // '.'
+	p.MatchTerms(token.MEMBER_SELECT)
 	m := p.ExpectIdent()
 
 	return MemberSelectExpr{
@@ -241,7 +254,7 @@ func (p *Parser) ExpectCallExpr(callee Expr) CallExpr {
 
 	begin := p.Position
 
-	p.Scan() // '('
+	p.MatchTerms(token.LPAREN)
 
 	params := p.ExpectExprList(token.RPAREN)
 
@@ -254,50 +267,65 @@ func (p *Parser) ExpectCallExpr(callee Expr) CallExpr {
 	}
 }
 
-// LookAheadExprSuccessor continues to parse, when current token leads to a new expression.
-func (p *Parser) LookAheadExprSuccessor(expr Expr) Expr {
-	switch p.Token.Kind {
-	case token.MEMBER_SELECT:
-		return p.ExpectMemberSelectExpr(expr)
-	case token.LBRACK:
-		return p.ExpectIndexExpr(expr)
-	case token.LPAREN:
-		return p.ExpectCallExpr(expr)
-	default:
-		if token.PostfixUnaryOperators[p.Token.Kind] {
-			op := p.ExpectOperator()
+// LookAheadLeftAssociativeOperatorAndExpr continues to parse, when current token is left-associative that leads to a new expression.
+func (p *Parser) LookAheadLeftAssociativeOperatorAndExpr(expr Expr) Expr {
+	newExpr := func() Expr {
+		switch p.Token.Kind {
+		case token.MEMBER_SELECT:
+			return p.ExpectMemberSelectExpr(expr)
+		case token.LBRACK:
+			return p.ExpectIndexExpr(expr)
+		case token.LPAREN:
+			return p.ExpectCallExpr(expr)
+		default:
+			if token.PostfixUnaryOperators[p.Token.Kind] {
+				op := p.ExpectOperator()
 
-			return UnaryExpr{
-				PosRange: PosRange{From: expr.Pos(), To: op.End()},
-				Operator: op,
-				Expr:     expr,
+				return UnaryExpr{
+					PosRange: PosRange{From: expr.Pos(), To: op.End()},
+					Operator: op,
+					Expr:     expr,
+				}
 			}
+			return nil
 		}
-		return nil
+	}()
+
+	if newExpr == nil {
+		return expr
 	}
+
+	return p.LookAheadLeftAssociativeOperatorAndExpr(newExpr)
 }
 
-func (p *Parser) ExpectShortExpr() (expr Expr) {
-	begin := p.Position
-
-	if token.PrefixUnaryOperators[p.Token.Kind] {
-		op := p.ExpectOperator()
-		expr := p.ExpectShortExpr()
-		return UnaryExpr{
-			PosRange: PosRange{From: begin, To: p.Position},
-			Operator: op,
-			Expr:     expr,
+func (p *Parser) ExpectLeftAssociativeExpr() Expr {
+	expr := func() Expr {
+		if token.IsLiteralValue(p.Token.Kind) {
+			return p.ExpectLiteralValue()
 		}
+
+		switch p.Token.Kind {
+		case token.IDENT:
+			return p.ExpectIdent()
+		case token.FUNC:
+			return p.ExpectFuncDecl()
+		case token.LPAREN:
+			p.Scan()
+			expr := p.ExpectExpr()
+			p.MatchTerms(token.RPAREN)
+			return expr
+		default:
+			panic(UnexpectedNodeError{ // TODO
+				Node:   p.Token,
+				Expect: []int{}})
+		}
+	}()
+
+	if newExpr := p.LookAheadLeftAssociativeOperatorAndExpr(expr); newExpr != nil {
+		return newExpr
 	}
 
-	switch p.Token.Kind {
-	case token.IDENT:
-		// TODO
-		return
-	default:
-		// TODO
-		return
-	}
+	return expr
 }
 
 func (p *Parser) ExpectExpr() (expr Expr) {
@@ -307,7 +335,9 @@ func (p *Parser) ExpectExpr() (expr Expr) {
 	//       | CallExpr
 	//       | Ident
 
-	expr = p.ExpectShortExpr()
+	expr = p.ExpectLeftAssociativeExpr()
+
+	return nil // TODO
 }
 
 func (p *Parser) ExpectExprList(terminator int) (exprs []Expr) {
@@ -373,6 +403,7 @@ func (p *Parser) ExpectStmtBlockExpr() StmtBlockExpr {
 	)
 
 	p.MatchTerms(token.LBRACE)
+
 	for p.Token.Kind != token.RBRACE {
 		stmts = append(stmts, p.ExpectStmt())
 	}
@@ -387,7 +418,8 @@ func (p *Parser) ExpectReturnStmt() ReturnStmt {
 
 	begin := p.Position
 
-	p.Scan()
+	p.MatchTerms(token.RETURN)
+
 	return ReturnStmt{
 		PosRange: PosRange{From: begin, To: p.Position},
 		Exprs:    p.ExpectExprList(0),

@@ -1,4 +1,4 @@
-// Copyright 2023-2023 LangVM Project
+// Copyright 2023-2024 LangVM Project
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
@@ -102,8 +102,6 @@ const (
 	TYPE
 	VAR
 
-	PERIOD // .
-
 	KEYWORD_END
 
 	DELIMITER_BEGIN
@@ -121,6 +119,8 @@ const (
 	NEWLINE   // \n
 
 	DELIMITER_END
+
+	token_end
 )
 
 var KeywordLiterals = [...]string{
@@ -173,7 +173,6 @@ var KeywordLiterals = [...]string{
 	LBRACK: "[",
 	LBRACE: "{",
 	COMMA:  ",",
-	PERIOD: ".",
 
 	RPAREN:    ")",
 	RBRACK:    "]",
@@ -215,14 +214,16 @@ var KeywordLiterals = [...]string{
 func IsLiteralValue(kind int) bool { return LITERAL_BEGIN < kind && kind < LITERAL_END }
 
 var PrefixUnaryOperators = [...]bool{
-	MUL: true,
-	AND: true,
-	ADD: true,
+	MUL:       true,
+	AND:       true,
+	ADD:       true,
+	token_end: false,
 }
 
 var PostfixUnaryOperators = [...]bool{
-	INC: true,
-	DEC: true,
+	INC:       true,
+	DEC:       true,
+	token_end: false,
 }
 
 var BinaryOperators = [...]int{
@@ -234,6 +235,7 @@ var BinaryOperators = [...]int{
 	SUB,
 	SHL,
 	SHR,
+	token_end,
 }
 
 func IsOperator(kind int) bool { return OPERATOR_BEGIN < kind && kind < OPERATOR_BEGIN }

@@ -61,7 +61,7 @@ func (bs *BufferScanner) Move() (rune, error) {
 	return ch, nil
 }
 
-// GetChar returns the char where the cursor is.
+// GetChar returns the char at the cursor.
 func (bs *BufferScanner) GetChar() (rune, error) {
 	if bs.Offset == len(bs.Buffer) {
 		return 0, EOFError{Pos: bs.Position}

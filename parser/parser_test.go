@@ -1,4 +1,4 @@
-// Copyright 2023-2023 LangVM Project
+// Copyright 2023-2024 LangVM Project
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
@@ -18,6 +18,14 @@ func newParser(src string) Parser {
 			Scanner: scanner.Scanner{
 				BufferScanner: scanner.BufferScanner{
 					Buffer: []rune(src)}}}}
+}
+
+func catch() {
+	switch v := recover().(type) {
+	case nil:
+	case UnexpectedNodeError:
+		println(v.Error())
+	}
 }
 
 func assert(t *testing.T, msg string, cond bool) {
@@ -85,12 +93,27 @@ func (paramA, paramB int, paramC int) (int, int, struct {})
 
 func TestParser_ExpectFuncDecl(t *testing.T) {
 	p := newParser(`
-fun Func(paramA, paramB int, paramC string) (int, int, string) {
+fun Ident(paramA, paramB int, paramC string) (int, int, string) {
 	return 0, 0, paramC
 }
 `)
+	defer catch()
+
 	p.Scan()
-	// TODO
+	funcDecl := p.ExpectFuncDecl()
+	typ := funcDecl.Type
+	assert(t, "function name incorrect", funcDecl.Name.Literal == "Ident")
+	assert(t, "paramB incorrect", typ.Params[0].Idents[1].Literal == "paramB")
+	assert(t, "3rd result incorrect", typ.Results[2].(ast.TypeAlias).Literal == "string")
+}
+
+func TestParser_ExpectLeftAssociativeExpr(t *testing.T) {
+	p := newParser(`
+base.A.B + 1
+`)
+	p.Scan()
+	expr := p.ExpectLeftAssociativeExpr()
+	assert(t, "member incorrect", expr.(ast.MemberSelectExpr).Member.Literal == "B")
 }
 
 func TestParser_ExpectExpr(t *testing.T) {
