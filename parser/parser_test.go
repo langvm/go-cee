@@ -124,3 +124,13 @@ identA * identC + identB * identC * (identA + identB)
 	expr := p.ExpectExpr()
 	println(expr.(ast.BinaryExpr).Operator.Literal)
 }
+
+func Test_ExpectBinaryExpr(t *testing.T) {
+	p := newParser(`
+a + a * b * c
+`)
+	p.Scan()
+	expr := p.ExpectExpr()
+
+	println(expr.GetPosRange().To.String())
+}

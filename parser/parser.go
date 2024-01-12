@@ -7,7 +7,13 @@ package parser
 import (
 	. "cee/ast"
 	"cee/token"
+	"strings"
 )
+
+func ParsePackageName(canonicalName string) string {
+	split := strings.Split(canonicalName, "/")
+	return split[len(split)-1]
+}
 
 // NOTICE:
 // ALL Expect* functions start from the cursor position and end at the NEXT token.
@@ -202,14 +208,17 @@ func (p *Parser) ExpectTypeList(terminator int) (types []Type) {
 }
 
 func (p *Parser) ExpectOperator() Token {
+	op := p.Token
+
 	if !token.IsOperator(p.Token.Kind) {
 		panic(UnexpectedNodeError{
 			Node:   p.Token,
 			Expect: []int{token.OPERATOR_BEGIN}})
 	}
+
 	p.Scan()
 
-	return p.Token
+	return op
 }
 
 func (p *Parser) ExpectLiteralValue() LiteralValue {
@@ -278,17 +287,19 @@ func (p *Parser) LookAheadLeftAssociativeOperatorAndExpr(expr Expr) Expr {
 		case token.LPAREN:
 			return p.ExpectCallExpr(expr)
 		default:
-			if token.PostfixUnaryOperators[p.Token.Kind] {
-				op := p.ExpectOperator()
-
-				return UnaryExpr{
-					PosRange: PosRange{From: expr.Pos(), To: op.End()},
-					Operator: op,
-					Expr:     expr,
-				}
-			}
-			return nil
 		}
+
+		if token.PostfixUnaryOperators[p.Token.Kind] {
+			op := p.ExpectOperator()
+
+			return UnaryExpr{
+				PosRange: PosRange{From: expr.GetPosRange().From, To: op.GetPosRange().To},
+				Operator: op,
+				Expr:     expr,
+			}
+		}
+
+		return nil
 	}()
 
 	if newExpr == nil {
@@ -315,9 +326,9 @@ func (p *Parser) ExpectLeftAssociativeExpr() Expr {
 			p.MatchTerms(token.RPAREN)
 			return expr
 		default:
-			panic(UnexpectedNodeError{ // TODO
+			panic(UnexpectedNodeError{
 				Node:   p.Token,
-				Expect: []int{}})
+				Expect: []int{}}) // TODO
 		}
 	}()
 
@@ -328,16 +339,51 @@ func (p *Parser) ExpectLeftAssociativeExpr() Expr {
 	return expr
 }
 
-func (p *Parser) ExpectExpr() (expr Expr) {
-	// Expr -> '(' + Expr + ')'
-	//       | BinaryExpr
-	//       | UnaryExpr
-	//       | CallExpr
-	//       | Ident
+func (p *Parser) ExpectPrefixUnaryExpr() UnaryExpr {
+	begin := p.Position
 
-	expr = p.ExpectLeftAssociativeExpr()
+	op := p.ExpectOperator()
+	expr := p.ExpectLeftAssociativeExpr()
 
-	return nil // TODO
+	return UnaryExpr{
+		PosRange: PosRange{From: begin, To: p.Position},
+		Operator: op,
+		Expr:     expr,
+	}
+}
+
+func (p *Parser) ExpectShortExpr() Expr {
+	if token.PrefixUnaryOperators[p.Token.Kind] {
+		return p.ExpectPrefixUnaryExpr()
+	}
+
+	return p.ExpectLeftAssociativeExpr()
+}
+
+// ExpectBinaryExpr parses bi-operand expressions in left-associative approach.
+func (p *Parser) ExpectBinaryExpr(exprL Expr) BinaryExpr {
+	op := p.ExpectOperator()
+	exprR := p.ExpectShortExpr()
+
+	expr := BinaryExpr{
+		PosRange: PosRange{From: exprL.GetPosRange().From, To: exprR.GetPosRange().To},
+		Operator: op,
+		Exprs:    [2]Expr{exprL, exprR},
+	}
+
+	if token.BinaryOperators[p.Token.Kind] != 0 {
+		return p.ExpectBinaryExpr(expr)
+	}
+
+	return expr
+}
+
+func (p *Parser) ExpectExpr() Expr {
+	expr := p.ExpectShortExpr()
+	if token.BinaryOperators[p.Token.Kind] != 0 {
+		return p.ExpectBinaryExpr(expr)
+	}
+	return expr
 }
 
 func (p *Parser) ExpectExprList(terminator int) (exprs []Expr) {
@@ -357,6 +403,38 @@ func (p *Parser) ExpectExprList(terminator int) (exprs []Expr) {
 		default:
 			exprs = append(exprs, p.ExpectExpr())
 		}
+	}
+}
+
+func (p *Parser) ExpectImportDecl() ImportDecl {
+	begin := p.Position
+
+	p.MatchTerms(token.IMPORT)
+	lit := p.ExpectLiteralValue()
+	if lit.Kind != token.STRING {
+		panic(UnexpectedNodeError{
+			Node:   lit,
+			Expect: []int{token.STRING}})
+	}
+
+	if p.Token.Kind == token.AS {
+		p.Scan()
+		alias := p.ExpectIdent()
+		p.MatchTerms(token.SEMICOLON)
+
+		return ImportDecl{
+			PosRange:      PosRange{From: begin, To: p.Position},
+			CanonicalName: lit,
+			Alias:         &alias,
+		}
+	}
+
+	p.MatchTerms(token.SEMICOLON)
+
+	return ImportDecl{
+		PosRange:      PosRange{From: begin, To: p.Position},
+		CanonicalName: lit,
+		Alias:         nil,
 	}
 }
 

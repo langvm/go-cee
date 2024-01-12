@@ -16,8 +16,10 @@ type UnexpectedNodeError struct {
 }
 
 func (e UnexpectedNodeError) Error() string {
+	from := e.Node.GetPosRange().From
+
 	if tok, ok := e.Node.(ast.Token); ok {
-		return fmt.Sprint(e.Node.Pos().String(), Tr(" syntax error: unexpected token: "), tok.Literal)
+		return fmt.Sprint(from.String(), Tr(" syntax error: unexpected token: "), tok.Literal)
 	}
-	return fmt.Sprint(e.Node.Pos().String(), Tr(" syntax error: unexpected node"))
+	return fmt.Sprint(from.String(), Tr(" syntax error: unexpected node"))
 }

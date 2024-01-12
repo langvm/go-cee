@@ -16,6 +16,7 @@ func (t *FuncType) Print() string {
 	for _, param := range t.Params {
 		for _, ident := range param.Idents {
 			b.Println(ident.Literal)
+			// TODO
 		}
 	}
 	b.Print(")")
@@ -29,3 +30,5 @@ func (t *FuncDecl) Print() string {
 
 	return b.String
 }
+
+// TODO

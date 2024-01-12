@@ -70,6 +70,9 @@ const (
 	INC // ++
 	DEC // --
 
+	AS // as
+	IN // in
+
 	OPERATOR_END
 
 	BREAK
@@ -101,6 +104,7 @@ const (
 	STRUCT
 	TYPE
 	VAR
+	VAL
 
 	KEYWORD_END
 
@@ -209,36 +213,42 @@ var KeywordLiterals = [...]string{
 	STRUCT: "struct",
 	TYPE:   "type",
 	VAR:    "var",
+	VAL:    "val",
+
+	AS: "as",
+	IN: "in",
 }
 
 func IsLiteralValue(kind int) bool { return LITERAL_BEGIN < kind && kind < LITERAL_END }
 
 var PrefixUnaryOperators = [...]bool{
-	MUL:       true,
-	AND:       true,
-	ADD:       true,
+	MUL: true,
+	AND: true,
+
 	token_end: false,
 }
 
 var PostfixUnaryOperators = [...]bool{
-	INC:       true,
-	DEC:       true,
+	INC: true,
+	DEC: true,
+
 	token_end: false,
 }
 
 var BinaryOperators = [...]int{
-	MUL,
-	QUO,
-	REM,
+	MUL: 1,
+	QUO: 1,
+	REM: 1,
 
-	ADD,
-	SUB,
-	SHL,
-	SHR,
-	token_end,
+	ADD: 1,
+	SUB: 1,
+	SHL: 1,
+	SHR: 1,
+
+	token_end: 0,
 }
 
-func IsOperator(kind int) bool { return OPERATOR_BEGIN < kind && kind < OPERATOR_BEGIN }
+func IsOperator(kind int) bool { return OPERATOR_BEGIN < kind && kind < OPERATOR_END }
 
 var KeywordEnums = map[string]int{}
 

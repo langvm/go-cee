@@ -49,16 +49,14 @@ const (
 )
 
 type Node interface {
-	Pos() token.Position
-	End() token.Position
+	GetPosRange() PosRange
 }
 
 type PosRange struct {
 	From, To token.Position
 }
 
-func (pos PosRange) Pos() token.Position { return pos.From }
-func (pos PosRange) End() token.Position { return pos.To }
+func (pos PosRange) GetPosRange() PosRange { return pos }
 
 type Token struct {
 	PosRange
@@ -172,6 +170,12 @@ type (
 		Node
 	}
 
+	ImportDecl struct {
+		PosRange
+		CanonicalName LiteralValue
+		Alias         *Ident
+	}
+
 	GenDecl struct {
 		PosRange
 		Idents []Ident
@@ -207,5 +211,6 @@ type (
 		Stmt StmtBlockExpr
 	}
 
-	ForeachStmt struct{}
+	ForeachStmt struct {
+	}
 )
