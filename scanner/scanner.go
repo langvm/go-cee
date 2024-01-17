@@ -1,19 +1,39 @@
-// Copyright 2023-2023 LangVM Project
+// Copyright 2023-2024 LangVM Project
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 package scanner
 
 import (
-	"cee/token"
 	"errors"
+	"fmt"
 	"strconv"
 	"unicode"
 )
 
+const (
+	_ = iota
+
+	WORD
+	INT
+	CHAR
+	STRING
+	MARKS
+
+	COMMENT
+)
+
+type Position struct {
+	Offset, Line, Column int
+}
+
+func (p Position) String() string {
+	return fmt.Sprint(p.Offset, ":", p.Line, ":", p.Column)
+}
+
 type BufferScanner struct {
-	token.Position // Cursor
-	Buffer         []rune
+	Position // Cursor
+	Buffer   []rune
 
 	Lines []string
 }
@@ -72,6 +92,8 @@ func (bs *BufferScanner) GetChar() (rune, error) {
 // Scanner is the token scanner.
 type Scanner struct {
 	BufferScanner
+
+	Delimiters map[rune]int
 }
 
 func (s *Scanner) GotoNextLine() error {
@@ -154,24 +176,23 @@ func (s *Scanner) ScanEscapeChar(quote rune) (rune, error) {
 
 // ScanQuotedString scans the string or char.
 // PANIC: Non-closed string might cause panic due to EOFError.
-func (s *Scanner) ScanQuotedString(quote rune) ([]rune, error) {
+func (s *Scanner) ScanQuotedString(quote rune) (int, []rune, error) {
 	_, _ = s.Move()
-	str := []rune{quote}
+	var str []rune
 	for {
 		ch, err := s.Move()
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		switch ch {
 		case '\\':
 			ch, err := s.ScanEscapeChar(quote)
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 			str = append(str, ch)
 		case quote:
-			str = append(str, quote)
-			return str, nil
+			return STRING, str, nil
 		default:
 			str = append(str, ch)
 		}
@@ -179,54 +200,54 @@ func (s *Scanner) ScanQuotedString(quote rune) ([]rune, error) {
 }
 
 // ScanQuotedChar scans char.
-func (s *Scanner) ScanQuotedChar() (rune, error) {
-	quote, err := s.ScanQuotedString('\'')
+func (s *Scanner) ScanQuotedChar() (int, []rune, error) {
+	_, quote, err := s.ScanQuotedString('\'')
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	if len(quote) != 1 {
-		return 0, FormatError{Pos: s.Position}
+		return 0, nil, FormatError{Pos: s.Position}
 	}
-	return quote[0], nil
+	return CHAR, quote, nil
 }
 
 // ScanLineComment scans line comment.
-func (s *Scanner) ScanLineComment() ([]rune, error) {
+func (s *Scanner) ScanLineComment() (int, []rune, error) {
 	begin := s.Offset
 	err := s.GotoNextLine()
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
-	return s.Buffer[begin:s.Offset], nil
+	return COMMENT, s.Buffer[begin:s.Offset], nil
 }
 
 // ScanQuotedComment scans until "*/".
 // Escape char does NOT affect.
-func (s *Scanner) ScanQuotedComment() ([]rune, error) {
+func (s *Scanner) ScanQuotedComment() (int, []rune, error) {
 	begin := s.Offset
 	for {
 		end := s.Offset
 		ch, err := s.Move()
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		if ch == '*' {
 			ch, err := s.Move()
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 			if ch == '/' {
-				return s.Buffer[begin:end], nil
+				return COMMENT, s.Buffer[begin:end], nil
 			}
 		}
 	}
 }
 
 // ScanComment scans and distinguish line comment or quoted comment.
-func (s *Scanner) ScanComment() ([]rune, error) {
+func (s *Scanner) ScanComment() (int, []rune, error) {
 	ch, err := s.Move()
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	switch ch {
 	case '/':
@@ -234,134 +255,107 @@ func (s *Scanner) ScanComment() ([]rune, error) {
 	case '*':
 		return s.ScanQuotedComment()
 	default:
-		return nil, FormatError{Pos: s.Position}
+		return 0, nil, FormatError{Pos: s.Position}
 	}
 }
 
-func (s *Scanner) ScanDigit() ([]rune, error) {
+func (s *Scanner) ScanDigit() (int, []rune, error) {
 	ch, _ := s.Move()
 
 	digits := []rune{ch}
 
 	// TODO
 
-	return digits, nil
+	return INT, digits, nil
 }
 
 // ScanWord scans and accepts only letters, digits and underlines.
 // No valid string found when returns empty []rune.
-func (s *Scanner) ScanWord() (str []rune, err error) {
+func (s *Scanner) ScanWord() (int, []rune, error) {
+	var word []rune
 	for {
 		ch, err := s.GetChar()
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		switch {
 		case unicode.IsDigit(ch):
 		case unicode.IsLetter(ch):
 		case ch == '_':
 		default: // Terminate
-			if len(str) == 0 {
-				return nil, FormatError{Pos: s.Position}
+			if len(word) == 0 {
+				return 0, nil, FormatError{Pos: s.Position}
 			}
-			return str, nil
+			return WORD, word, nil
 		}
 
 		_, _ = s.Move()
-		str = append(str, ch)
+		word = append(word, ch)
 	}
 }
 
 // ScanMarkSeq scans CONSEQUENT marks except/until delimiters.
-func (s *Scanner) ScanMarkSeq() (str []rune, err error) {
+func (s *Scanner) ScanMarkSeq() (int, []rune, error) {
+	var seq []rune
 	for {
 		ch, err := s.GetChar()
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
-		if IsMark(ch) && !token.IsDelimiter(ch) {
-			str = append(str, ch)
+		if IsMark(ch) && s.Delimiters[ch] == 0 {
+			seq = append(seq, ch)
 			_, _ = s.Move()
 		} else {
-			if len(str) == 0 {
-				return nil, FormatError{Pos: s.Position}
+			if len(seq) == 0 {
+				return 0, nil, FormatError{Pos: s.Position}
 			}
-			return str, nil
+			return MARKS, seq, nil
 		}
 	}
 }
 
 // ScanToken decides the next way to scan by the cursor.
-func (s *Scanner) ScanToken() (int, []rune, error) {
+func (s *Scanner) ScanToken() (Position, int, string, error) {
 	err := s.SkipWhitespace()
 	if err != nil {
-		return 0, nil, err
+		return Position{}, 0, "", err
 	}
 
-	ch, err := s.GetChar()
-	if err != nil {
-		return 0, nil, err
-	}
+	begin := s.Position
 
-	switch {
-	case unicode.IsDigit(ch): // Digital literal value
-		digit, err := s.ScanDigit()
+	kind, lit, err := func() (int, []rune, error) {
+		ch, err := s.GetChar()
 		if err != nil {
 			return 0, nil, err
 		}
-		return token.INT, digit, nil
 
-	case unicode.IsLetter(ch) || ch == '_': // Keyword OR Ident
-		tok, err := s.ScanWord()
+		switch {
+		case unicode.IsDigit(ch): // Digital literal value
+			return s.ScanDigit()
 
-		switch err := err.(type) {
-		case nil:
-		case FormatError:
+		case unicode.IsLetter(ch) || ch == '_': // Keyword OR Idents
+			return s.ScanWord()
+
+		case ch == '"': // String
+			return s.ScanQuotedString(ch)
+
+		case ch == '\'': // Char
+			return s.ScanQuotedChar()
+
+		case s.Delimiters[ch] != 0:
+			_, _ = s.Move()
+			return MARKS, []rune{ch}, nil
+
+		case ch == '/': // Comment
+			return s.ScanComment()
+
+		case IsMark(ch): // Operator
+			return s.ScanMarkSeq()
+
 		default:
-			return 0, nil, err
+			panic("impossible")
 		}
+	}()
 
-		if keyword := token.KeywordEnums[string(tok)]; keyword != 0 {
-			return keyword, tok, nil
-		}
-
-		return token.IDENT, tok, nil
-
-	case ch == '"': // String
-		tok, err := s.ScanQuotedString(ch)
-		return token.STRING, tok, err
-
-	case ch == '\'': // Char
-		tok, err := s.ScanQuotedChar()
-		return token.CHAR, []rune{tok}, err
-
-	case ch == '/': // Comment
-		_, err := s.ScanComment() // TODO
-		if err != nil {
-			return 0, nil, err
-		}
-		return s.ScanToken()
-
-	case token.IsDelimiter(ch):
-		_, _ = s.Move()
-		return token.Delimiters[ch], []rune{ch}, nil
-
-	case IsMark(ch): // Operator
-		tok, err := s.ScanMarkSeq()
-
-		switch err := err.(type) {
-		case nil:
-		case FormatError:
-		default:
-			return 0, nil, err
-		}
-
-		if keyword := token.KeywordEnums[string(tok)]; keyword != 0 {
-			return keyword, tok, nil
-		}
-
-		return 0, nil, UnknownOperatorError{Pos: s.Position}
-	default:
-		panic("impossible")
-	}
+	return begin, kind, string(lit), err
 }

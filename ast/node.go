@@ -5,7 +5,8 @@
 package ast
 
 import (
-	"cee/token"
+	"cee/internal"
+	"cee/scanner"
 )
 
 const (
@@ -50,10 +51,11 @@ const (
 
 type Node interface {
 	GetPosRange() PosRange
+	Print(b *internal.StringBuffer)
 }
 
 type PosRange struct {
-	From, To token.Position
+	From, To scanner.Position
 }
 
 func (pos PosRange) GetPosRange() PosRange { return pos }
@@ -103,6 +105,10 @@ type (
 		Token
 	}
 
+	Ident struct {
+		Token
+	}
+
 	UnaryExpr struct {
 		PosRange
 		Operator Token
@@ -118,10 +124,6 @@ type (
 	EllipsisExpr struct {
 		PosRange
 		Array Expr
-	}
-
-	Ident struct {
-		Token
 	}
 
 	CallExpr struct {
@@ -162,6 +164,7 @@ type (
 	MemberSelectExpr struct {
 		PosRange
 		Member Ident
+		Expr   Expr
 	}
 )
 
@@ -176,6 +179,12 @@ type (
 		Alias         *Ident
 	}
 
+	ValDecl struct {
+		PosRange
+		Name  Ident
+		Value Expr
+	}
+
 	GenDecl struct {
 		PosRange
 		Idents []Ident
@@ -184,9 +193,9 @@ type (
 
 	FuncDecl struct {
 		PosRange
-		Type FuncType
-		Name Ident
-		Stmt *StmtBlockExpr
+		Type  FuncType
+		Ident *Ident
+		Stmt  *StmtBlockExpr
 	}
 
 	ReturnStmt struct {
@@ -196,6 +205,7 @@ type (
 
 	AssignStmt struct {
 		PosRange
+		ExprL, ExprR Expr
 	}
 
 	BreakStmt struct {
@@ -207,10 +217,18 @@ type (
 	}
 
 	LoopStmt struct {
+		PosRange
 		Cond Expr
 		Stmt StmtBlockExpr
 	}
 
 	ForeachStmt struct {
+		PosRange
+		IdentList []Ident
+		Expr      Expr
+	}
+
+	EndlessForStmt struct {
+		Stmt StmtBlockExpr
 	}
 )

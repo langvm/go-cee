@@ -40,7 +40,7 @@ func (p *Parser) ExpectToken() Token {
 }
 
 func (p *Parser) ExpectIdent() Ident {
-	// Ident -> {Ident.Kind == IDENT}
+	// Idents -> {Idents.Kind == IDENT}
 
 	if p.Token.Kind != token.IDENT {
 		panic(UnexpectedNodeError{
@@ -55,8 +55,8 @@ func (p *Parser) ExpectIdent() Ident {
 }
 
 func (p *Parser) ExpectIdentList(terminator int) (idents []Ident) {
-	// IdentList -> Ident
-	//            | IdentList + ',' + Ident
+	// IdentList -> Idents
+	//            | IdentList + ',' + Idents
 	//            | IdentList + ',' + terminator
 
 	for {
@@ -68,7 +68,7 @@ func (p *Parser) ExpectIdentList(terminator int) (idents []Ident) {
 			if p.Token.Kind == terminator {
 				// NOTE: INTENTIONAL DESIGN-BREAKING IMPLEMENTATION
 				// To avoid this out-of-duty branch:
-				// - Ident prefetch must be applied to the scanner for comma erasing, or
+				// - Idents prefetch must be applied to the scanner for comma erasing, or
 				// - Modify syntax, deny any comma at the end of list.
 				return
 			}
@@ -114,24 +114,27 @@ func (p *Parser) ExpectFuncDecl() FuncDecl {
 
 	p.MatchTerms(token.FUNC)
 
-	ident := p.ExpectIdent()
-	typ := p.ExpectFuncType()
+	var pIdent *Ident
 
-	if p.Token.Kind != token.LBRACE {
-		return FuncDecl{
-			PosRange: PosRange{From: begin, To: p.Position},
-			Type:     typ,
-			Name:     ident,
-			Stmt:     nil,
-		}
+	if p.Token.Kind == token.IDENT {
+		ident := p.ExpectIdent()
+		pIdent = &ident
 	}
 
-	blockStmt := p.ExpectStmtBlockExpr()
+	typ := p.ExpectFuncType()
+
+	var pExpr *StmtBlockExpr
+
+	if p.Token.Kind == token.LBRACE {
+		expr := p.ExpectStmtBlockExpr()
+		pExpr = &expr
+	}
+
 	return FuncDecl{
 		PosRange: PosRange{From: begin, To: p.Position},
 		Type:     typ,
-		Name:     ident,
-		Stmt:     &blockStmt,
+		Ident:    pIdent,
+		Stmt:     pExpr,
 	}
 }
 
@@ -245,7 +248,7 @@ func (p *Parser) ExpectIndexExpr(expr Expr) IndexExpr {
 }
 
 func (p *Parser) ExpectMemberSelectExpr(expr Expr) MemberSelectExpr {
-	// MemberSelectExpr -> Expr + '.' + Ident
+	// MemberSelectExpr -> Expr + '.' + Idents
 
 	begin := p.Position
 
@@ -410,36 +413,31 @@ func (p *Parser) ExpectImportDecl() ImportDecl {
 	begin := p.Position
 
 	p.MatchTerms(token.IMPORT)
+
+	var alias *Ident
+
+	if p.Token.Kind == token.IDENT {
+		ident := p.ExpectIdent()
+		alias = &ident // Escape.
+	}
+
 	lit := p.ExpectLiteralValue()
+
 	if lit.Kind != token.STRING {
 		panic(UnexpectedNodeError{
 			Node:   lit,
 			Expect: []int{token.STRING}})
 	}
 
-	if p.Token.Kind == token.AS {
-		p.Scan()
-		alias := p.ExpectIdent()
-		p.MatchTerms(token.SEMICOLON)
-
-		return ImportDecl{
-			PosRange:      PosRange{From: begin, To: p.Position},
-			CanonicalName: lit,
-			Alias:         &alias,
-		}
-	}
-
-	p.MatchTerms(token.SEMICOLON)
-
 	return ImportDecl{
 		PosRange:      PosRange{From: begin, To: p.Position},
 		CanonicalName: lit,
-		Alias:         nil,
+		Alias:         alias,
 	}
 }
 
 func (p *Parser) ExpectGenDecl() GenDecl {
-	// GenDecl -> Ident + Type
+	// GenDecl -> Idents + Type
 
 	begin := p.Position
 
@@ -450,6 +448,26 @@ func (p *Parser) ExpectGenDecl() GenDecl {
 		PosRange: PosRange{From: begin, To: p.Position},
 		Idents:   idents,
 		Type:     typ,
+	}
+}
+
+func (p *Parser) ExpectValDecl() ValDecl {
+	// ValDecl -> 'val' + Idents + '=' + Expr
+
+	begin := p.Position
+
+	p.MatchTerms(token.VAL)
+
+	ident := p.ExpectIdent()
+
+	p.MatchTerms(token.ASSIGN)
+
+	expr := p.ExpectExpr()
+
+	return ValDecl{
+		PosRange: PosRange{From: begin, To: p.Position},
+		Name:     ident,
+		Value:    expr,
 	}
 }
 
@@ -498,10 +516,19 @@ func (p *Parser) ExpectReturnStmt() ReturnStmt {
 
 	p.MatchTerms(token.RETURN)
 
+	exprs := p.ExpectExprList(0)
+
 	return ReturnStmt{
 		PosRange: PosRange{From: begin, To: p.Position},
-		Exprs:    p.ExpectExprList(0),
+		Exprs:    exprs,
 	}
+}
+
+func (p *Parser) ExpectLoopStmt() LoopStmt {
+	p.MatchTerms(token.FOR)
+	p.ExpectExpr()
+
+	return LoopStmt{} // TODO
 }
 
 func (p *Parser) ExpectStmt() Stmt {
@@ -515,6 +542,9 @@ func (p *Parser) ExpectStmt() Stmt {
 		return p.ExpectStmtBlockExpr()
 	case token.IDENT:
 	case token.VAR:
+	case token.VAL:
+	case token.CONTINUE:
+	case token.BREAK:
 	case token.RETURN:
 		p.ExpectReturnStmt()
 	default:

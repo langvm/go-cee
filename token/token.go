@@ -217,6 +217,8 @@ var KeywordLiterals = [...]string{
 
 	AS: "as",
 	IN: "in",
+
+	token_end: "",
 }
 
 func IsLiteralValue(kind int) bool { return LITERAL_BEGIN < kind && kind < LITERAL_END }
@@ -271,12 +273,8 @@ var Delimiters = map[rune]int{
 	'\n': NEWLINE, // Newline, might be a statement terminator.
 }
 
-func IsDelimiter(ch rune) bool {
-	return Delimiters[ch] != 0
-}
-
 func init() {
-	for i := KEYWORD_BEGIN; i < KEYWORD_END; i++ {
+	for i := 0; i < token_end; i++ {
 		KeywordEnums[KeywordLiterals[i]] = i
 	}
 }

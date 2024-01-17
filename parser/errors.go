@@ -23,3 +23,11 @@ func (e UnexpectedNodeError) Error() string {
 	}
 	return fmt.Sprint(from.String(), Tr(" syntax error: unexpected node"))
 }
+
+type UnknownOperatorError struct {
+	ast.Token
+}
+
+func (e UnknownOperatorError) Error() string {
+	return fmt.Sprintln("unknown operator:", e.Token.Literal)
+}

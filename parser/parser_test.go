@@ -8,6 +8,7 @@ import (
 	"cee/ast"
 	"cee/diagnosis"
 	"cee/scanner"
+	"cee/token"
 	"runtime/debug"
 	"testing"
 )
@@ -16,6 +17,7 @@ func newParser(src string) Parser {
 	return Parser{
 		Scanner: Scanner{
 			Scanner: scanner.Scanner{
+				Delimiters: token.Delimiters,
 				BufferScanner: scanner.BufferScanner{
 					Buffer: []rune(src)}}}}
 }
@@ -83,7 +85,7 @@ ident, aa struct {
 
 func TestParser_ExpectFuncType(t *testing.T) {
 	p := newParser(`
-func (paramA, paramB int, paramC int) (int, int, struct {})
+(paramA, paramB int, paramC int) (int, int, struct {})
 `)
 	p.Scan()
 	typ := p.ExpectFuncType()
@@ -93,7 +95,7 @@ func (paramA, paramB int, paramC int) (int, int, struct {})
 
 func TestParser_ExpectFuncDecl(t *testing.T) {
 	p := newParser(`
-fun Ident(paramA, paramB int, paramC string) (int, int, string) {
+fun Idents(paramA, paramB int, paramC string) (int, int, string) {
 	return 0, 0, paramC
 }
 `)
@@ -102,7 +104,7 @@ fun Ident(paramA, paramB int, paramC string) (int, int, string) {
 	p.Scan()
 	funcDecl := p.ExpectFuncDecl()
 	typ := funcDecl.Type
-	assert(t, "function name incorrect", funcDecl.Name.Literal == "Ident")
+	assert(t, "function name incorrect", funcDecl.Ident.Literal == "Idents")
 	assert(t, "paramB incorrect", typ.Params[0].Idents[1].Literal == "paramB")
 	assert(t, "3rd result incorrect", typ.Results[2].(ast.TypeAlias).Literal == "string")
 }
