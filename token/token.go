@@ -256,6 +256,12 @@ var KeywordEnums = map[string]int{}
 
 func IsKeyword(term int) bool { return KEYWORD_BEGIN <= term && term <= KEYWORD_END }
 
+var Whitespaces = map[rune]int{
+	' ':  1,
+	'\t': 1,
+	'\r': 1,
+}
+
 var Delimiters = map[rune]int{
 	'{': LBRACE,
 	'}': RBRACE,

@@ -14,12 +14,14 @@ import (
 )
 
 func newParser(src string) Parser {
-	return Parser{
+	p := Parser{
 		Scanner: Scanner{
 			Scanner: scanner.Scanner{
 				Delimiters: token.Delimiters,
 				BufferScanner: scanner.BufferScanner{
 					Buffer: []rune(src)}}}}
+	p.Setup()
+	return p
 }
 
 func catch() {

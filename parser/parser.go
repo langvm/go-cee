@@ -33,12 +33,6 @@ func (p *Parser) MatchTerms(terms ...int) {
 	}
 }
 
-func (p *Parser) ExpectToken() Token {
-	tok := p.Token
-	p.Scan()
-	return tok
-}
-
 func (p *Parser) ExpectIdent() Ident {
 	// Idents -> {Idents.Kind == IDENT}
 
@@ -86,6 +80,8 @@ func (p *Parser) ExpectFuncType() FuncType {
 		results []Type
 	)
 
+	begin := p.Token.From
+
 	p.MatchTerms(token.LPAREN)
 
 	if p.Token.Kind == token.IDENT {
@@ -104,13 +100,14 @@ func (p *Parser) ExpectFuncType() FuncType {
 	}
 
 	return FuncType{
-		Params:  params,
-		Results: results,
+		PosRange: PosRange{From: begin, To: p.Position},
+		Params:   params,
+		Results:  results,
 	}
 }
 
 func (p *Parser) ExpectFuncDecl() FuncDecl {
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.FUNC)
 
@@ -139,7 +136,7 @@ func (p *Parser) ExpectFuncDecl() FuncDecl {
 }
 
 func (p *Parser) ExpectStructType() StructType {
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.STRUCT, token.LBRACE)
 
@@ -233,7 +230,7 @@ func (p *Parser) ExpectLiteralValue() LiteralValue {
 func (p *Parser) ExpectIndexExpr(expr Expr) IndexExpr {
 	// IndexExpr -> Expr + '[' + Expr + ']'
 
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.LBRACK)
 
@@ -250,7 +247,7 @@ func (p *Parser) ExpectIndexExpr(expr Expr) IndexExpr {
 func (p *Parser) ExpectMemberSelectExpr(expr Expr) MemberSelectExpr {
 	// MemberSelectExpr -> Expr + '.' + Idents
 
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.MEMBER_SELECT)
 	m := p.ExpectIdent()
@@ -264,7 +261,7 @@ func (p *Parser) ExpectMemberSelectExpr(expr Expr) MemberSelectExpr {
 func (p *Parser) ExpectCallExpr(callee Expr) CallExpr {
 	// CallExpr -> Expr + '(' + ExprList + ')'
 
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.LPAREN)
 
@@ -343,7 +340,7 @@ func (p *Parser) ExpectLeftAssociativeExpr() Expr {
 }
 
 func (p *Parser) ExpectPrefixUnaryExpr() UnaryExpr {
-	begin := p.Position
+	begin := p.Token.From
 
 	op := p.ExpectOperator()
 	expr := p.ExpectLeftAssociativeExpr()
@@ -410,7 +407,7 @@ func (p *Parser) ExpectExprList(terminator int) (exprs []Expr) {
 }
 
 func (p *Parser) ExpectImportDecl() ImportDecl {
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.IMPORT)
 
@@ -439,7 +436,7 @@ func (p *Parser) ExpectImportDecl() ImportDecl {
 func (p *Parser) ExpectGenDecl() GenDecl {
 	// GenDecl -> Idents + Type
 
-	begin := p.Position
+	begin := p.Token.From
 
 	idents := p.ExpectIdentList(0)
 	typ := p.ExpectType()
@@ -454,7 +451,7 @@ func (p *Parser) ExpectGenDecl() GenDecl {
 func (p *Parser) ExpectValDecl() ValDecl {
 	// ValDecl -> 'val' + Idents + '=' + Expr
 
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.VAL)
 
@@ -512,7 +509,7 @@ func (p *Parser) ExpectStmtBlockExpr() StmtBlockExpr {
 func (p *Parser) ExpectReturnStmt() ReturnStmt {
 	// ReturnStmt -> 'return' + ExprList
 
-	begin := p.Position
+	begin := p.Token.From
 
 	p.MatchTerms(token.RETURN)
 

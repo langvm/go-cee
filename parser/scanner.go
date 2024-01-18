@@ -19,6 +19,11 @@ type Scanner struct {
 	DelimiterStack []Stack[int]
 }
 
+func (s *Scanner) Setup() {
+	s.Scanner.Delimiters = token.Delimiters
+	s.Scanner.Whitespaces = token.Whitespaces
+}
+
 func (s *Scanner) ScanToken() (ast.Token, error) {
 	begin, kind, lit, err := s.Scanner.ScanToken()
 	if err != nil {
