@@ -23,20 +23,27 @@ func TestScanner_ScanToken(t *testing.T) {
 			Position: Position{},
 			Buffer:   src,
 		},
-		Delimiters: token.Delimiters,
+		Delimiters:  token.Delimiters,
+		Whitespaces: token.Whitespaces,
 	}
 
-	for {
-		var _, _, lit, err = s.ScanToken()
-		switch err := err.(type) {
-		case nil:
-		case EOFError:
-			println("EOF")
-			return
-		default:
-			println(err.Error())
-			return
+	func() {
+		defer func() {
+			switch v := recover().(type) {
+			case nil:
+			case EOFError:
+				println("EOF")
+				return
+			case error:
+				println(v.Error())
+				return
+			default:
+				panic(v)
+			}
+		}()
+		for {
+			_, _, lit := s.ScanToken()
+			println(string(lit))
 		}
-		println(string(lit))
-	}
+	}()
 }

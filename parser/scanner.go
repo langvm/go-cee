@@ -6,9 +6,9 @@ package parser
 
 import (
 	"cee/ast"
-	. "cee/internal"
 	"cee/scanner"
 	"cee/token"
+	. "go-structure/stack"
 )
 
 type Scanner struct {
@@ -24,14 +24,11 @@ func (s *Scanner) Setup() {
 	s.Scanner.Whitespaces = token.Whitespaces
 }
 
-func (s *Scanner) ScanToken() (ast.Token, error) {
-	begin, kind, lit, err := s.Scanner.ScanToken()
-	if err != nil {
-		return ast.Token{}, err
-	}
+func (s *Scanner) ScanToken() ast.Token {
+	begin, kind, lit := s.Scanner.ScanToken()
 
 	switch kind {
-	case scanner.WORD:
+	case scanner.IDENT:
 		if k, ok := token.KeywordEnums[lit]; ok {
 			kind = k
 		} else {
@@ -42,9 +39,9 @@ func (s *Scanner) ScanToken() (ast.Token, error) {
 			PosRange: ast.PosRange{From: begin, To: s.Position},
 			Kind:     kind,
 			Literal:  lit,
-		}, nil
+		}
 
-	case scanner.MARKS:
+	case scanner.OPERATOR:
 		if k, ok := token.KeywordEnums[lit]; ok {
 			kind = k
 		} else {
@@ -77,14 +74,14 @@ func (s *Scanner) ScanToken() (ast.Token, error) {
 				PosRange: ast.PosRange{From: begin, To: s.Position},
 				Kind:     token.SEMICOLON,
 				Literal:  ";",
-			}, nil
+			}
 		}
 
 		return ast.Token{
 			PosRange: ast.PosRange{From: begin, To: s.Position},
 			Kind:     kind,
 			Literal:  lit,
-		}, nil
+		}
 
 	case scanner.COMMENT:
 		return s.ScanToken()
@@ -104,15 +101,10 @@ func (s *Scanner) ScanToken() (ast.Token, error) {
 			PosRange: ast.PosRange{From: begin, To: s.Position},
 			Kind:     kind,
 			Literal:  lit,
-		}, nil
+		}
 	}
 }
 
 func (s *Scanner) Scan() {
-	tok, err := s.ScanToken()
-	if err != nil {
-		panic(err)
-	}
-
-	s.Token = tok
+	s.Token = s.ScanToken()
 }
