@@ -15,7 +15,7 @@ const (
 	_ = iota
 
 	IDENT
-	OPERATOR
+	MARK
 
 	INT
 	FLOAT
@@ -24,6 +24,22 @@ const (
 	STRING
 
 	COMMENT
+)
+
+const (
+	_ = iota
+
+	INT_HEX
+	INT_DEC
+	INT_OCT
+	INT_BIN
+)
+
+const (
+	_ = iota
+
+	COMMENT_LINE
+	COMMENT_QUOTED
 )
 
 func IsMark(ch rune) bool {
@@ -257,18 +273,21 @@ func (s *Scanner) ScanQuotedComment() ([]rune, error) {
 }
 
 // ScanComment scans and distinguish line comment or quoted comment.
-func (s *Scanner) ScanComment() ([]rune, error) {
+func (s *Scanner) ScanComment() (int, []rune, error) {
 	ch, err := s.Move()
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	switch ch {
 	case '/':
-		return s.ScanLineComment()
+
+		lit, err := s.ScanLineComment()
+		return COMMENT_LINE, lit, err
 	case '*':
-		return s.ScanQuotedComment()
+		lit, err := s.ScanQuotedComment()
+		return COMMENT_QUOTED, lit, err
 	default:
-		return nil, FormatError{Pos: s.Position}
+		return 0, nil, FormatError{Pos: s.Position}
 	}
 }
 
@@ -328,44 +347,47 @@ func (s *Scanner) ScanHexDigit() ([]rune, error) {
 	return s.ScanWhile(cond)
 }
 
-func (s *Scanner) ScanDigit() ([]rune, error) {
+func (s *Scanner) ScanDigit() (int, []rune, error) {
 	ch, err := s.Move()
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	digits := []rune{ch}
 
 	if ch == '0' {
 		ch, err := s.Move()
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		switch ch {
 		case 'x':
-			return s.ScanHexDigit()
+			lit, err := s.ScanHexDigit()
+			return INT_HEX, lit, err
 		case 'o':
-			return s.ScanOctDigit()
+			lit, err := s.ScanOctDigit()
+			return INT_OCT, lit, err
 		case 'b':
-			return s.ScanBinDigit()
+			lit, err := s.ScanBinDigit()
+			return INT_BIN, lit, err
 		default:
-			return nil, FormatError{Pos: s.Position}
+			return 0, nil, FormatError{Pos: s.Position}
 		}
 	}
 
 	for unicode.IsDigit(ch) {
 		ch, err := s.Move()
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		digits = append(digits, ch)
 	}
 
-	return digits, nil
+	return 0, digits, nil
 }
 
-// ScanWord scans and accepts only letters, digits and underlines.
+// ScanIdent scans and accepts only letters, digits and underlines.
 // No valid string found when returns empty []rune.
-func (s *Scanner) ScanWord() ([]rune, error) {
+func (s *Scanner) ScanIdent() ([]rune, error) {
 	var word []rune
 	for {
 		ch, err := s.GetChar()
@@ -416,62 +438,49 @@ func (s *Scanner) ScanMarkSeq() ([]rune, error) {
 }
 
 // ScanToken decides the next way to scan by the cursor.
-func (s *Scanner) ScanToken() (Position, int, string, error) {
+func (s *Scanner) ScanToken() (Position, int, int, []rune, error) {
 	err := s.SkipWhitespace()
 	if err != nil {
-		return Position{}, 0, "", err
+		return Position{}, 0, 0, nil, err
 	}
 
 	begin := s.Position
 
-	kind := 0
-
-	lit, err := func() ([]rune, error) {
-		ch, err := s.GetChar()
-		if err != nil {
-			return nil, err
-		}
-
-		switch {
-		case unicode.IsDigit(ch): // Digital literal value
-			kind = INT
-			return s.ScanDigit()
-
-		case unicode.IsLetter(ch) || ch == '_': // Keyword OR Idents
-			kind = IDENT
-			return s.ScanWord()
-
-		case ch == '"': // String
-			kind = STRING
-			return s.ScanQuotedString(ch)
-
-		case ch == '\'': // Char
-			kind = CHAR
-			return s.ScanQuotedChar()
-
-		case s.Delimiters[ch] != 0: // Parentheses, brackets, braces, comma ...
-			ch, err := s.Move()
-			if err != nil {
-				return nil, err
-			}
-			kind = CHAR
-			return []rune{ch}, nil
-
-		case ch == '/': // Comment
-			kind = COMMENT
-			return s.ScanComment()
-
-		case IsMark(ch): // Operator
-			kind = OPERATOR
-			return s.ScanMarkSeq()
-
-		default:
-			panic("impossible")
-		}
-	}()
+	ch, err := s.GetChar()
 	if err != nil {
-		return Position{}, 0, "", err
+		return begin, 0, 0, nil, err
 	}
 
-	return begin, kind, string(lit), err
+	switch {
+	case unicode.IsDigit(ch): // Digital literal value
+		format, lit, err := s.ScanDigit()
+		return begin, INT, format, lit, err
+
+	case unicode.IsLetter(ch) || ch == '_': // Keyword OR Idents
+		lit, err := s.ScanIdent()
+		return begin, IDENT, 0, lit, err
+
+	case ch == '"': // String
+		lit, err := s.ScanQuotedString(ch)
+		return begin, STRING, 0, lit, err
+
+	case ch == '\'': // Char
+		lit, err := s.ScanQuotedChar()
+		return begin, CHAR, 0, lit, err
+
+	case s.Delimiters[ch] != 0: // Parentheses, brackets, braces, comma ...
+		ch, err := s.Move()
+		return begin, MARK, 0, []rune{ch}, err
+
+	case ch == '/': // Comment
+		format, lit, err := s.ScanComment()
+		return begin, COMMENT, format, lit, err
+
+	case IsMark(ch): // Operator
+		lit, err := s.ScanMarkSeq()
+		return begin, MARK, 0, lit, err
+
+	default:
+		panic("impossible")
+	}
 }

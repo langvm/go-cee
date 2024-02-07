@@ -22,7 +22,7 @@ type Parser struct {
 	Scanner
 }
 
-func (p *Parser) MatchTerms(terms ...int) {
+func (p *Parser) MatchTerms(terms ...int) error {
 	for _, term := range terms {
 		if p.Token.Kind != term {
 			panic(UnexpectedNodeError{
@@ -33,7 +33,7 @@ func (p *Parser) MatchTerms(terms ...int) {
 	}
 }
 
-func (p *Parser) ExpectIdent() Ident {
+func (p *Parser) ExpectIdent() (Ident, error) {
 	// Idents -> {Idents.Kind == IDENT}
 
 	if p.Token.Kind != token.IDENT {
@@ -48,22 +48,22 @@ func (p *Parser) ExpectIdent() Ident {
 	return Ident{Token: ident}
 }
 
-func (p *Parser) ExpectIdentList(terminator int) (idents []Ident) {
+func (p *Parser) ExpectIdentList(terminator int) (idents []Ident, _ error) {
 	// IdentList -> Idents
 	//            | IdentList + ',' + Idents
 	//            | IdentList + ',' + terminator
 
 	for {
-		ident := p.ExpectIdent()
+		ident, err := p.ExpectIdent()
+		if err != nil {
+			return nil, err
+		}
+
 		idents = append(idents, ident)
 		switch p.Token.Kind {
 		case token.COMMA:
 			p.Scan()
 			if p.Token.Kind == terminator {
-				// NOTE: INTENTIONAL DESIGN-BREAKING IMPLEMENTATION
-				// To avoid this out-of-duty branch:
-				// - Idents prefetch must be applied to the scanner for comma erasing, or
-				// - Modify syntax, deny any comma at the end of list.
 				return
 			}
 			continue

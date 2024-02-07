@@ -25,7 +25,10 @@ func (s *Scanner) Setup() {
 }
 
 func (s *Scanner) ScanToken() ast.Token {
-	begin, kind, lit := s.Scanner.ScanToken()
+	begin, kind, lit, err := s.Scanner.ScanToken()
+	if err != nil {
+		panic(err)
+	}
 
 	switch kind {
 	case scanner.IDENT:
@@ -41,7 +44,7 @@ func (s *Scanner) ScanToken() ast.Token {
 			Literal:  lit,
 		}
 
-	case scanner.OPERATOR:
+	case scanner.MARK:
 		if k, ok := token.KeywordEnums[lit]; ok {
 			kind = k
 		} else {

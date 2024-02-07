@@ -28,8 +28,9 @@ func TestScanner_ScanToken(t *testing.T) {
 	}
 
 	func() {
-		defer func() {
-			switch v := recover().(type) {
+		for {
+			_, _, _, lit, err := s.ScanToken()
+			switch v := err.(type) {
 			case nil:
 			case EOFError:
 				println("EOF")
@@ -40,9 +41,6 @@ func TestScanner_ScanToken(t *testing.T) {
 			default:
 				panic(v)
 			}
-		}()
-		for {
-			_, _, lit := s.ScanToken()
 			println(string(lit))
 		}
 	}()
