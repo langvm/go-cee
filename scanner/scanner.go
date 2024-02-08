@@ -1,4 +1,4 @@
-// Copyright 2023-2024 LangVM Project
+// Copyright 2024 JetERA Creative
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
@@ -27,12 +27,10 @@ const (
 )
 
 const (
-	_ = iota
-
-	INT_HEX
-	INT_DEC
-	INT_OCT
-	INT_BIN
+	INT_BIN = 2
+	INT_OCT = 8
+	INT_DEC = 10
+	INT_HEX = 16
 )
 
 const (
@@ -336,6 +334,17 @@ func (s *Scanner) ScanOctDigit() ([]rune, error) {
 	return s.ScanWhile(cond)
 }
 
+func (s *Scanner) ScanDecDigit() ([]rune, error) {
+	cond := func() bool {
+		ch, err := s.GetChar()
+		if err != nil {
+			return false
+		}
+		return '0' <= ch && ch <= '9'
+	}
+	return s.ScanWhile(cond)
+}
+
 func (s *Scanner) ScanHexDigit() ([]rune, error) {
 	cond := func() bool {
 		ch, err := s.GetChar()
@@ -348,13 +357,16 @@ func (s *Scanner) ScanHexDigit() ([]rune, error) {
 }
 
 func (s *Scanner) ScanDigit() (int, []rune, error) {
-	ch, err := s.Move()
+	ch, err := s.GetChar()
 	if err != nil {
 		return 0, nil, err
 	}
-	digits := []rune{ch}
 
 	if ch == '0' {
+		_, err := s.Move()
+		if err != nil {
+			return 0, nil, err
+		}
 		ch, err := s.Move()
 		if err != nil {
 			return 0, nil, err
@@ -374,15 +386,9 @@ func (s *Scanner) ScanDigit() (int, []rune, error) {
 		}
 	}
 
-	for unicode.IsDigit(ch) {
-		ch, err := s.Move()
-		if err != nil {
-			return 0, nil, err
-		}
-		digits = append(digits, ch)
-	}
+	lit, err := s.ScanDecDigit()
 
-	return 0, digits, nil
+	return INT_DEC, lit, err
 }
 
 // ScanIdent scans and accepts only letters, digits and underlines.

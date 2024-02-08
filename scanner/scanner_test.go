@@ -13,7 +13,7 @@ var src = []rune(`
 package main
 var i = len("String for testing."+"")
 i++
-if i != 0b01 | 0b01 && i == '1' {
+if i != 127 | 0b01 && i == '1' {
 	println("String for testing.\nChinese letter: \u554a")
 }`)
 
