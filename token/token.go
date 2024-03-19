@@ -1,11 +1,11 @@
-// Copyright 2023-2024 LangVM Project
+// Copyright 2024 LangVM Project
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 package token
 
 const (
-	ILLEGAL int = iota
+	ILLEGAL = iota
 
 	IDENT // main
 
@@ -252,7 +252,7 @@ var BinaryOperators = [...]int{
 
 func IsOperator(kind int) bool { return OPERATOR_BEGIN < kind && kind < OPERATOR_END }
 
-var KeywordEnums = map[string]int{}
+var Keyword2Enum = map[string]int{}
 
 func IsKeyword(term int) bool { return KEYWORD_BEGIN <= term && term <= KEYWORD_END }
 
@@ -281,6 +281,6 @@ var Delimiters = map[rune]int{
 
 func init() {
 	for i := 0; i < token_end; i++ {
-		KeywordEnums[KeywordLiterals[i]] = i
+		Keyword2Enum[KeywordLiterals[i]] = i
 	}
 }

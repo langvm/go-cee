@@ -1,57 +1,20 @@
-// Copyright 2023-2024 LangVM Project
+// Copyright 2024 LangVM Project
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 package ast
 
 import (
-	"cee/internal"
-	"cee/scanner"
+	"cee"
+	"github.com/langvm/go-cee-scanner"
 )
 
 const (
 	_ = iota
-
-	UNARY_BEGIN
-
-	OP_NOT
-
-	OP_INCREASE
-	OP_DECREASE
-
-	OP_REFERENCE
-	OP_DEREFERENCE
-	OP_DEREFERENCE_GUARDED
-
-	OP_PANIC
-
-	UNARY_END
-
-	BINARY_BEGIN
-
-	OP_NEQ
-	OP_EQ
-	OP_LT
-	OP_LE
-
-	OP_AND
-	OP_OR
-	OP_XOR
-	OP_SHIFT_LEFT
-	OP_SHIFT_RIGHT
-
-	OP_ADD
-	OP_SUB
-	OP_MUL
-	OP_DIV
-	OP_MOD
-
-	BINARY_END
 )
 
 type Node interface {
 	GetPosRange() PosRange
-	Print(b *internal.StringBuffer)
 }
 
 type PosRange struct {
@@ -66,11 +29,35 @@ type Token struct {
 	Literal string
 }
 
-type (
-	Type interface {
-		Node
-	}
+type List[T any] struct {
+	PosRange
+	List []T
+}
 
+type TypeKind byte
+
+const (
+	_ TypeKind = iota
+
+	TypeNone
+	TypeStruct
+	TypeTrait
+
+	TypeI8 // builtin
+	TypeI16
+	TypeI32
+	TypeI64
+	TypeU8
+	TypeU16
+	TypeU32
+	TypeU64
+)
+
+type Type struct {
+	cee.Union[TypeKind]
+}
+
+type (
 	StructType struct {
 		PosRange
 		Fields []GenDecl
@@ -92,15 +79,22 @@ type (
 	}
 )
 
+type ExprKind int
+
+const (
+	_ = iota
+
+	ExprIdent
+	ExprLiteralValue
+	ExprUnary
+	ExprBinary
+)
+
+type Expr struct {
+	cee.Union[ExprKind]
+}
+
 type (
-	Expr interface {
-		Node
-	}
-
-	BadExpr struct {
-		PosRange
-	}
-
 	LiteralValue struct {
 		Token
 	}
@@ -168,11 +162,16 @@ type (
 	}
 )
 
-type (
-	Stmt interface {
-		Node
-	}
+type StmtKind byte
 
+const (
+	_ = iota
+)
+
+type Stmt struct {
+}
+
+type (
 	ImportDecl struct {
 		PosRange
 		CanonicalName LiteralValue
